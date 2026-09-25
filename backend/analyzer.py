@@ -118,10 +118,11 @@ _ENTRY_POINT_NAMES = {
 _ROUTE_RE = re.compile(
     r"""
     (?:
-        @(?:app|router)\.(get|post|put|patch|delete|options|head)\s*\(\s*["']([^"']+)["']  # FastAPI / Flask
+        @(?:app|router)\.(get|post|put|patch|delete|options|head)\s*\(\s*["']([^"']+)["']  # FastAPI/Flask
       | router\.(get|post|put|patch|delete)\s*\(\s*["']([^"']+)["']                        # Express
       | @(Get|Post|Put|Patch|Delete)\s*\(\s*["']([^"']+)["']                               # NestJS
-      | @(GetMapping|PostMapping|PutMapping|DeleteMapping|RequestMapping)\s*\(\s*(?:value\s*=\s*)?["']([^"']+)["']  # Spring
+      | @(GetMapping|PostMapping|PutMapping|DeleteMapping|RequestMapping)  # Spring
+        \s*\(\s*(?:value\s*=\s*)?["']([^"']+)["']
     )
     """,
     re.VERBOSE | re.IGNORECASE,
@@ -235,8 +236,10 @@ class RepoAnalyzer:
             elif basename == "package.json":
                 try:
                     pkg = json.loads(content)
-                    all_deps = list(pkg.get("dependencies", {}).keys()) + \
-                               list(pkg.get("devDependencies", {}).keys())
+                    all_deps = (
+                        list(pkg.get("dependencies", {}).keys())
+                        + list(pkg.get("devDependencies", {}).keys())
+                    )
                     if all_deps:
                         deps["npm"] = all_deps
                 except json.JSONDecodeError:

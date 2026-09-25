@@ -38,6 +38,6 @@ async def analyze_repo(body: AnalyzeRequest):
         report = await ReportGenerator(result).generate()
         return report
     except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=400, detail=str(e)) from e
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Analysis failed: {e}")
+        raise HTTPException(status_code=500, detail=f"Analysis failed: {e}") from e

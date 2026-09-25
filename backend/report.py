@@ -80,7 +80,7 @@ class ReportGenerator:
 
     async def _call_openai(self) -> str:
         try:
-            import openai  # optional dependency
+            import openai  # type: ignore[import-untyped]  # optional dependency
         except ImportError as exc:
             raise RuntimeError(
                 "openai package is not installed. "
