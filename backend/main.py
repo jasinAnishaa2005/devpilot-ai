@@ -3,7 +3,11 @@ main.py — DevPilot AI FastAPI application entry point.
 """
 from __future__ import annotations
 
+from dotenv import load_dotenv
+load_dotenv()  # load GITHUB_TOKEN / OPENAI_API_KEY from .env before any other import reads os.getenv
+
 from fastapi import FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
 
 from models import AnalyzeRequest, OnboardingReport
 from analyzer import RepoAnalyzer
@@ -14,6 +18,19 @@ app = FastAPI(
     title="DevPilot AI",
     description="AI Developer Assistant for GitHub repositories",
     version="1.0.0",
+)
+
+# Allow the Next.js dev server (port 3000) and any same-origin production deploy.
+# Adjust origins / methods as needed when the frontend URL is finalised.
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[
+        "http://localhost:3000",
+        "http://127.0.0.1:3000",
+    ],
+    allow_credentials=True,
+    allow_methods=["GET", "POST"],
+    allow_headers=["Content-Type", "Authorization"],
 )
 
 

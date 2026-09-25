@@ -154,6 +154,7 @@ class RepoAnalyzer:
             )
 
         return AnalysisResult(
+            repo_url=self.repo_url,
             repo_name=self.repo_name,
             owner=self.owner,
             branch=self.branch,
@@ -261,13 +262,23 @@ class RepoAnalyzer:
 
             elif basename == "go.mod":
                 go_deps: list[str] = []
+                in_require_block = False
                 for line in content.splitlines():
                     line = line.strip()
-                    if line.startswith("require") or (go_deps and line.startswith(")")):
+                    if line == "require (":
+                        in_require_block = True
                         continue
-                    if go_deps or line.startswith("require ("):
-                        if line and not line.startswith(")"):
-                            go_deps.append(line.split()[0])
+                    if in_require_block and line == ")":
+                        in_require_block = False
+                        continue
+                    # Single-line: require github.com/foo/bar v1.2.3
+                    if line.startswith("require ") and not line.startswith("require ("):
+                        parts = line.split()
+                        if len(parts) >= 2:
+                            go_deps.append(parts[1])
+                        continue
+                    if in_require_block and line and not line.startswith("//"):
+                        go_deps.append(line.split()[0])
                 if go_deps:
                     deps["go"] = go_deps
 
