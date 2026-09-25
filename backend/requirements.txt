@@ -1,0 +1,7 @@
+fastapi>=0.111
+uvicorn[standard]>=0.29
+httpx>=0.27
+pydantic>=2.7
+python-dotenv>=1.0
+# Optional — only needed if OPENAI_API_KEY is set
+# openai>=1.30
