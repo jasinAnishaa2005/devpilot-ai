@@ -265,14 +265,15 @@ class RepoAnalyzer:
                 in_require_block = False
                 for line in content.splitlines():
                     line = line.strip()
-                    if line == "require (":
+                    # Block open: "require (" or "require(" with optional trailing comment
+                    if re.match(r"^require\s*\(", line):
                         in_require_block = True
                         continue
-                    if in_require_block and line == ")":
+                    if in_require_block and line.split("//")[0].strip() == ")":
                         in_require_block = False
                         continue
                     # Single-line: require github.com/foo/bar v1.2.3
-                    if line.startswith("require ") and not line.startswith("require ("):
+                    if line.startswith("require ") and not re.match(r"^require\s*\(", line):
                         parts = line.split()
                         if len(parts) >= 2:
                             go_deps.append(parts[1])
