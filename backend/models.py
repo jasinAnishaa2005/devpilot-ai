@@ -22,6 +22,7 @@ class AnalyzeRequest(BaseModel):
 # ── Analyzer output ────────────────────────────────────────────────────────────
 
 class AnalysisResult(BaseModel):
+    repo_url: str                       # original full URL e.g. "https://github.com/owner/repo"
     repo_name: str
     owner: str
     branch: str

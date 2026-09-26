@@ -118,10 +118,11 @@ _ENTRY_POINT_NAMES = {
 _ROUTE_RE = re.compile(
     r"""
     (?:
-        @(?:app|router)\.(get|post|put|patch|delete|options|head)\s*\(\s*["']([^"']+)["']  # FastAPI / Flask
+        @(?:app|router)\.(get|post|put|patch|delete|options|head)\s*\(\s*["']([^"']+)["']  # FastAPI/Flask
       | router\.(get|post|put|patch|delete)\s*\(\s*["']([^"']+)["']                        # Express
       | @(Get|Post|Put|Patch|Delete)\s*\(\s*["']([^"']+)["']                               # NestJS
-      | @(GetMapping|PostMapping|PutMapping|DeleteMapping|RequestMapping)\s*\(\s*(?:value\s*=\s*)?["']([^"']+)["']  # Spring
+      | @(GetMapping|PostMapping|PutMapping|DeleteMapping|RequestMapping)  # Spring
+        \s*\(\s*(?:value\s*=\s*)?["']([^"']+)["']
     )
     """,
     re.VERBOSE | re.IGNORECASE,
@@ -153,6 +154,7 @@ class RepoAnalyzer:
             )
 
         return AnalysisResult(
+            repo_url=self.repo_url,
             repo_name=self.repo_name,
             owner=self.owner,
             branch=self.branch,
@@ -235,8 +237,10 @@ class RepoAnalyzer:
             elif basename == "package.json":
                 try:
                     pkg = json.loads(content)
-                    all_deps = list(pkg.get("dependencies", {}).keys()) + \
-                               list(pkg.get("devDependencies", {}).keys())
+                    all_deps = (
+                        list(pkg.get("dependencies", {}).keys())
+                        + list(pkg.get("devDependencies", {}).keys())
+                    )
                     if all_deps:
                         deps["npm"] = all_deps
                 except json.JSONDecodeError:
@@ -258,13 +262,24 @@ class RepoAnalyzer:
 
             elif basename == "go.mod":
                 go_deps: list[str] = []
+                in_require_block = False
                 for line in content.splitlines():
                     line = line.strip()
-                    if line.startswith("require") or (go_deps and line.startswith(")")):
+                    # Block open: "require (" or "require(" with optional trailing comment
+                    if re.match(r"^require\s*\(", line):
+                        in_require_block = True
                         continue
-                    if go_deps or line.startswith("require ("):
-                        if line and not line.startswith(")"):
-                            go_deps.append(line.split()[0])
+                    if in_require_block and line.split("//")[0].strip() == ")":
+                        in_require_block = False
+                        continue
+                    # Single-line: require github.com/foo/bar v1.2.3
+                    if line.startswith("require ") and not re.match(r"^require\s*\(", line):
+                        parts = line.split()
+                        if len(parts) >= 2:
+                            go_deps.append(parts[1])
+                        continue
+                    if in_require_block and line and not line.startswith("//"):
+                        go_deps.append(line.split()[0])
                 if go_deps:
                     deps["go"] = go_deps
 

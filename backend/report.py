@@ -52,7 +52,7 @@ class ReportGenerator:
 
         sections = self._parse_sections(raw)
         return OnboardingReport(
-            repo_url=self.result.owner + "/" + self.result.repo_name,
+            repo_url=self.result.repo_url,
             repo_name=self.result.repo_name,
             sections=sections,
             generated_at=datetime.now(timezone.utc).isoformat(),
@@ -80,7 +80,7 @@ class ReportGenerator:
 
     async def _call_openai(self) -> str:
         try:
-            import openai  # optional dependency
+            import openai  # type: ignore[import-untyped]  # optional dependency
         except ImportError as exc:
             raise RuntimeError(
                 "openai package is not installed. "

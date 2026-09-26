@@ -5,6 +5,10 @@ from __future__ import annotations
 
 import os
 
+from dotenv import load_dotenv
+
+load_dotenv()
+
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -20,14 +24,16 @@ app = FastAPI(
 )
 
 # ── CORS ───────────────────────────────────────────────────────────────────────
-# Allow the frontend dev server (and any origin configured via CORS_ORIGINS env
-# var) to call the backend.  In production, set CORS_ORIGINS to the exact
-# frontend domain instead of "*".
+# Allow the frontend dev server and any origins configured through CORS_ORIGINS.
 _cors_origins_env = os.getenv("CORS_ORIGINS", "")
+
 _allowed_origins: list[str] = (
     [o.strip() for o in _cors_origins_env.split(",") if o.strip()]
     if _cors_origins_env
-    else ["http://localhost:3000", "http://127.0.0.1:3000"]
+    else [
+        "http://localhost:3000",
+        "http://127.0.0.1:3000",
+    ]
 )
 
 app.add_middleware(
@@ -53,13 +59,21 @@ def health():
 async def analyze_repo(body: AnalyzeRequest):
     try:
         branch = body.branch
+
         if not branch:
             owner, repo = parse_owner_repo(body.repo_url)
             branch = await fetch_default_branch(owner, repo)
+
         result = await RepoAnalyzer(body.repo_url, branch).analyze()
         report = await ReportGenerator(result).generate()
+
         return report
+
     except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=400, detail=str(e)) from e
+
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Analysis failed: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Analysis failed: {e}",
+        ) from e

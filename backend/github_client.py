@@ -133,6 +133,7 @@ async def fetch_files_batch(
         results = await asyncio.gather(*tasks)
     return dict(zip(paths, results))
 
+
 async def fetch_default_branch(
     owner: str,
     repo: str,
