@@ -3,8 +3,12 @@ main.py — DevPilot AI FastAPI application entry point.
 """
 from __future__ import annotations
 
+<<<<<<< HEAD
 from dotenv import load_dotenv
 load_dotenv()  # load GITHUB_TOKEN / OPENAI_API_KEY from .env before any other import reads os.getenv
+=======
+import os
+>>>>>>> origin/frontend
 
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
@@ -20,6 +24,7 @@ app = FastAPI(
     version="1.0.0",
 )
 
+<<<<<<< HEAD
 # Allow the Next.js dev server (port 3000) and any same-origin production deploy.
 # Adjust origins / methods as needed when the frontend URL is finalised.
 app.add_middleware(
@@ -31,6 +36,25 @@ app.add_middleware(
     allow_credentials=True,
     allow_methods=["GET", "POST"],
     allow_headers=["Content-Type", "Authorization"],
+=======
+# ── CORS ───────────────────────────────────────────────────────────────────────
+# Allow the frontend dev server (and any origin configured via CORS_ORIGINS env
+# var) to call the backend.  In production, set CORS_ORIGINS to the exact
+# frontend domain instead of "*".
+_cors_origins_env = os.getenv("CORS_ORIGINS", "")
+_allowed_origins: list[str] = (
+    [o.strip() for o in _cors_origins_env.split(",") if o.strip()]
+    if _cors_origins_env
+    else ["http://localhost:3000", "http://127.0.0.1:3000"]
+)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=_allowed_origins,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+>>>>>>> origin/frontend
 )
 
 
