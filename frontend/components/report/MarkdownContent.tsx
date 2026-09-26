@@ -7,27 +7,27 @@ interface MarkdownContentProps {
   content: string;
 }
 
-// Custom renderers for a professional developer-tool aesthetic
+// Custom renderers — wine-palette developer-tool aesthetic
 const components: Components = {
   // Headings
   h1: ({ children }) => (
-    <h1 className="text-lg font-bold text-gray-900 mt-4 mb-2 first:mt-0">
+    <h1 className="text-lg font-bold text-[#241A1D] mt-4 mb-2 first:mt-0">
       {children}
     </h1>
   ),
   h2: ({ children }) => (
-    <h2 className="text-base font-semibold text-gray-900 mt-4 mb-2 first:mt-0">
+    <h2 className="text-base font-semibold text-[#241A1D] mt-4 mb-2 first:mt-0">
       {children}
     </h2>
   ),
   h3: ({ children }) => (
-    <h3 className="text-sm font-semibold text-gray-800 mt-3 mb-1.5 first:mt-0">
+    <h3 className="text-sm font-semibold text-[#3A0714] mt-3 mb-1.5 first:mt-0">
       {children}
     </h3>
   ),
   // Paragraphs
   p: ({ children }) => (
-    <p className="text-sm text-gray-700 leading-relaxed mb-3 last:mb-0">
+    <p className="text-sm text-[#4A3036] leading-relaxed mb-3 last:mb-0">
       {children}
     </p>
   ),
@@ -43,13 +43,12 @@ const components: Components = {
     </ol>
   ),
   li: ({ children }) => (
-    <li className="text-sm text-gray-700 leading-relaxed">{children}</li>
+    <li className="text-sm text-[#4A3036] leading-relaxed">{children}</li>
   ),
   // Inline code
   code: ({ className, children, ...props }) => {
     const isBlock = className?.includes("language-");
     if (isBlock) {
-      // Block code — rehype-highlight will add syntax classes
       return (
         <code
           className={[
@@ -65,7 +64,7 @@ const components: Components = {
     // Inline code
     return (
       <code
-        className="inline rounded bg-gray-100 px-1.5 py-0.5 text-xs font-mono text-gray-800 border border-gray-200"
+        className="inline rounded bg-[#F7F2EF] px-1.5 py-0.5 text-xs font-mono text-[#3A0714] border border-[#E2DEDC]"
         {...props}
       >
         {children}
@@ -74,17 +73,17 @@ const components: Components = {
   },
   // Code blocks (pre wrapper)
   pre: ({ children }) => (
-    <pre className="overflow-x-auto rounded-md bg-gray-900 p-4 mb-3 last:mb-0 text-gray-100 text-xs leading-relaxed">
+    <pre className="overflow-x-auto rounded-md bg-[#2A0710] p-4 mb-3 last:mb-0 text-[#F7F2EF] text-xs leading-relaxed border border-[#520B1B]/60">
       {children}
     </pre>
   ),
   // Strong / bold
   strong: ({ children }) => (
-    <strong className="font-semibold text-gray-900">{children}</strong>
+    <strong className="font-semibold text-[#241A1D]">{children}</strong>
   ),
   // Blockquote
   blockquote: ({ children }) => (
-    <blockquote className="border-l-4 border-gray-300 pl-3 my-2 italic text-gray-600 text-sm">
+    <blockquote className="border-l-4 border-[#B85C6E]/50 pl-3 my-2 italic text-[#766A6D] text-sm bg-[#F7F2EF] py-2 pr-2 rounded-r-md">
       {children}
     </blockquote>
   ),
@@ -94,7 +93,7 @@ const components: Components = {
       href={href}
       target="_blank"
       rel="noopener noreferrer"
-      className="text-blue-600 hover:text-blue-800 underline underline-offset-2"
+      className="text-[#7A1830] hover:text-[#3A0714] underline underline-offset-2 transition-colors"
     >
       {children}
     </a>
@@ -106,17 +105,17 @@ const components: Components = {
     </div>
   ),
   th: ({ children }) => (
-    <th className="border border-gray-200 bg-gray-50 px-3 py-2 text-left font-semibold text-gray-700">
+    <th className="border border-[#E2DEDC] bg-[#3A0714] px-3 py-2 text-left font-semibold text-white">
       {children}
     </th>
   ),
   td: ({ children }) => (
-    <td className="border border-gray-200 px-3 py-2 text-gray-700">
+    <td className="border border-[#E2DEDC] px-3 py-2 text-[#241A1D] odd:bg-white even:bg-[#F7F2EF]">
       {children}
     </td>
   ),
   // Horizontal rule
-  hr: () => <hr className="my-4 border-gray-200" />,
+  hr: () => <hr className="my-4 border-[#E2DEDC]" />,
 };
 
 export function MarkdownContent({ content }: MarkdownContentProps) {

@@ -1,12 +1,30 @@
 @import "tailwindcss";
 
+/* ============================================================
+   DevPilot AI — Design Tokens (Dark Wine / Burgundy palette)
+   ============================================================ */
+:root {
+  --wine-primary:   #3A0714;
+  --wine-deep:      #520B1B;
+  --wine-dark:      #2A0710;
+  --wine-accent:    #7A1830;
+  --rose-accent:    #B85C6E;
+  --off-white:      #F7F2EF;
+  --light-grey:     #ECE9E7;
+  --light-grey-2:   #E2DEDC;
+  --white:          #FFFFFF;
+  --text-dark:      #241A1D;
+  --text-muted:     #766A6D;
+}
+
 /* Smooth scrolling for section anchor navigation */
 html {
   scroll-behavior: smooth;
 }
 
-/* Highlight.js theme for code blocks in Markdown sections */
-/* Using a minimal light/dark approach that works with our gray-900 pre background */
+/* ============================================================
+   Highlight.js — wine-aware code theme
+   ============================================================ */
 .hljs {
   background: transparent;
   color: #e2e8f0;
@@ -16,7 +34,7 @@ html {
 .hljs-built_in,
 .hljs-name,
 .hljs-tag {
-  color: #93c5fd;
+  color: #c4b5fd;
 }
 .hljs-string,
 .hljs-attr,
@@ -42,8 +60,55 @@ html {
 .hljs-function,
 .hljs-title,
 .hljs-section {
-  color: #c4b5fd;
+  color: #B85C6E;
 }
 .hljs-literal {
   color: #fdba74;
+}
+
+/* ============================================================
+   Homepage dark wine background & abstract orbs
+   ============================================================ */
+.wine-bg {
+  background-color: #2A0710;
+  background-image:
+    radial-gradient(ellipse 60% 50% at 15% 20%, rgba(122,24,48,0.35) 0%, transparent 70%),
+    radial-gradient(ellipse 50% 40% at 85% 80%, rgba(82,11,27,0.40) 0%, transparent 70%),
+    radial-gradient(ellipse 35% 30% at 60% 10%, rgba(184,92,110,0.10) 0%, transparent 60%);
+  position: relative;
+}
+
+/* Decorative orbital / dot layer (pure CSS, no interaction) */
+.wine-bg::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background-image:
+    radial-gradient(circle 1px at 20% 35%, rgba(184,92,110,0.4) 0%, transparent 100%),
+    radial-gradient(circle 1px at 50% 70%, rgba(184,92,110,0.3) 0%, transparent 100%),
+    radial-gradient(circle 1px at 80% 25%, rgba(184,92,110,0.3) 0%, transparent 100%),
+    radial-gradient(circle 1px at 35% 85%, rgba(122,24,48,0.5) 0%, transparent 100%),
+    radial-gradient(circle 1px at 70% 55%, rgba(122,24,48,0.4) 0%, transparent 100%);
+  background-size: 300px 300px, 250px 250px, 350px 350px, 280px 280px, 320px 320px;
+  pointer-events: none;
+}
+
+/* ============================================================
+   Glassmorphism feature card
+   ============================================================ */
+.glass-card {
+  background: rgba(58, 7, 20, 0.45);
+  border: 1px solid rgba(184, 92, 110, 0.25);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+}
+
+/* ============================================================
+   Utility: rose gradient text
+   ============================================================ */
+.gradient-text {
+  background: linear-gradient(135deg, #B85C6E 0%, #7A1830 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
 }

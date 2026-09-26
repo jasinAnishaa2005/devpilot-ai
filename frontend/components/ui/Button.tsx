@@ -11,11 +11,11 @@ interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
 
 const variantClasses: Record<Variant, string> = {
   primary:
-    "bg-blue-600 text-white hover:bg-blue-700 active:bg-blue-800 disabled:bg-blue-300",
+    "bg-[#3A0714] text-white hover:bg-[#520B1B] active:bg-[#2A0710] disabled:bg-[#7A1830]/50 disabled:text-white/60 focus:ring-[#B85C6E]",
   secondary:
-    "bg-white text-gray-700 border border-gray-300 hover:bg-gray-50 active:bg-gray-100 disabled:opacity-50",
+    "bg-white text-[#241A1D] border border-[#E2DEDC] hover:bg-[#F7F2EF] hover:border-[#B85C6E]/40 active:bg-[#ECE9E7] disabled:opacity-50 focus:ring-[#B85C6E]",
   ghost:
-    "text-gray-600 hover:text-gray-900 hover:bg-gray-100 active:bg-gray-200 disabled:opacity-40",
+    "text-[#766A6D] hover:text-[#241A1D] hover:bg-[#F7F2EF] active:bg-[#ECE9E7] disabled:opacity-40 focus:ring-[#B85C6E]",
 };
 
 const sizeClasses: Record<Size, string> = {
@@ -43,7 +43,7 @@ const Button = forwardRef<HTMLButtonElement, ButtonProps>(
         disabled={disabled || loading}
         className={[
           "inline-flex items-center justify-center gap-2 rounded-md font-medium",
-          "transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2",
+          "transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2",
           "cursor-pointer disabled:cursor-not-allowed",
           variantClasses[variant],
           sizeClasses[size],

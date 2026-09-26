@@ -33,7 +33,7 @@ export function ProgressMessages() {
   return (
     <p
       className={[
-        "text-sm text-gray-500 transition-opacity duration-300",
+        "text-sm text-[#F7F2EF]/55 transition-opacity duration-300",
         visible ? "opacity-100" : "opacity-0",
       ].join(" ")}
     >

@@ -30,23 +30,24 @@ interface ReportSectionProps {
 export function ReportSection({ section }: ReportSectionProps) {
   const meta = SECTION_META[section.title as SectionTitle];
   const Icon = meta ? (ICON_MAP[meta.icon] ?? BookOpen) : BookOpen;
-  const accentClass = meta?.accentClass ?? "bg-gray-50 text-gray-700";
-  const borderClass = meta?.borderClass ?? "border-l-gray-300";
+  const accentClass = meta?.accentClass ?? "bg-[#F7F2EF] text-[#3A0714]";
+  const borderClass = meta?.borderClass ?? "border-l-[#766A6D]";
   const anchorId = meta?.id ?? section.title.toLowerCase().replace(/\s+/g, "-");
 
   return (
     <section
       id={anchorId}
       className={[
-        "rounded-xl border border-gray-200 bg-white border-l-4 overflow-hidden",
+        "rounded-xl border border-[#E2DEDC] bg-white border-l-4 overflow-hidden",
+        "shadow-[0_1px_6px_rgba(58,7,20,0.06)] transition-shadow duration-200 hover:shadow-[0_4px_16px_rgba(58,7,20,0.10)]",
         borderClass,
       ].join(" ")}
       aria-labelledby={`${anchorId}-title`}
     >
       {/* Section header */}
-      <div className={["flex items-center gap-3 px-5 py-4 border-b border-gray-100", accentClass].join(" ")}>
-        <Icon className="h-5 w-5 flex-shrink-0" />
-        <h2 id={`${anchorId}-title`} className="text-sm font-semibold">
+      <div className={["flex items-center gap-3 px-5 py-4 border-b border-[#ECE9E7]", accentClass].join(" ")}>
+        <Icon className="h-5 w-5 flex-shrink-0 text-[#7A1830]" />
+        <h2 id={`${anchorId}-title`} className="text-sm font-semibold text-[#241A1D]">
           {section.title}
         </h2>
       </div>

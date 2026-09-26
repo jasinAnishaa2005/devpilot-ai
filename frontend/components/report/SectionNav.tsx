@@ -56,7 +56,7 @@ export function SectionNav({ titles }: SectionNavProps) {
 
   return (
     <nav aria-label="Report sections">
-      <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-gray-400 px-2">
+      <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-[#766A6D] px-2">
         Sections
       </p>
       <ul className="flex flex-col gap-0.5">
@@ -69,13 +69,18 @@ export function SectionNav({ titles }: SectionNavProps) {
               <a
                 href={`#${meta.id}`}
                 className={[
-                  "flex items-center gap-2.5 rounded-md px-2 py-1.5 text-sm transition-colors",
+                  "flex items-center gap-2.5 rounded-md px-2 py-1.5 text-sm transition-all duration-150",
                   isActive
-                    ? "bg-blue-50 text-blue-700 font-medium"
-                    : "text-gray-600 hover:bg-gray-100 hover:text-gray-900",
+                    ? "bg-[#3A0714] text-white font-medium shadow-sm"
+                    : "text-[#766A6D] hover:bg-[#ECE9E7] hover:text-[#241A1D]",
                 ].join(" ")}
               >
-                <Icon className="h-4 w-4 flex-shrink-0" />
+                <Icon
+                  className={[
+                    "h-4 w-4 flex-shrink-0 transition-colors",
+                    isActive ? "text-[#B85C6E]" : "text-[#766A6D]",
+                  ].join(" ")}
+                />
                 <span className="truncate">{title}</span>
               </a>
             </li>

@@ -28,9 +28,9 @@ export function AnalysisProgress() {
     <div className="flex flex-col items-center justify-center min-h-[320px] gap-6 w-full max-w-md mx-auto text-center">
       {/* Animated icon */}
       <div className="relative">
-        <div className="h-16 w-16 rounded-2xl bg-blue-50 flex items-center justify-center">
+        <div className="h-16 w-16 rounded-2xl bg-[#520B1B] border border-[#7A1830]/60 flex items-center justify-center shadow-[0_0_24px_rgba(122,24,48,0.4)]">
           <svg
-            className="h-8 w-8 text-blue-600 animate-pulse"
+            className="h-8 w-8 text-[#B85C6E] animate-pulse"
             fill="none"
             viewBox="0 0 24 24"
             stroke="currentColor"
@@ -44,25 +44,25 @@ export function AnalysisProgress() {
           </svg>
         </div>
         {/* Orbit ring */}
-        <div className="absolute inset-0 h-16 w-16 rounded-full border-2 border-blue-200 animate-spin [animation-duration:3s]" />
+        <div className="absolute inset-0 h-16 w-16 rounded-full border-2 border-[#B85C6E]/40 animate-spin [animation-duration:3s]" />
       </div>
 
       <div className="flex flex-col gap-1">
-        <p className="text-base font-semibold text-gray-800">
+        <p className="text-base font-semibold text-[#F7F2EF]">
           Analyzing repository…
         </p>
         <ProgressMessages />
       </div>
 
       {/* Progress bar */}
-      <div className="w-full h-1.5 rounded-full bg-gray-100 overflow-hidden">
+      <div className="w-full h-1.5 rounded-full bg-[#520B1B]/60 overflow-hidden">
         <div
-          className="h-full rounded-full bg-blue-500 transition-[width] duration-500 ease-linear"
+          className="h-full rounded-full bg-gradient-to-r from-[#7A1830] to-[#B85C6E] transition-[width] duration-500 ease-linear"
           style={{ width: `${width}%` }}
         />
       </div>
 
-      <p className="text-xs text-gray-400">
+      <p className="text-xs text-[#F7F2EF]/40">
         This may take up to 20 seconds for large repositories.
       </p>
     </div>
