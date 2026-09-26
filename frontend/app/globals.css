@@ -1,0 +1,49 @@
+@import "tailwindcss";
+
+/* Smooth scrolling for section anchor navigation */
+html {
+  scroll-behavior: smooth;
+}
+
+/* Highlight.js theme for code blocks in Markdown sections */
+/* Using a minimal light/dark approach that works with our gray-900 pre background */
+.hljs {
+  background: transparent;
+  color: #e2e8f0;
+}
+.hljs-keyword,
+.hljs-selector-tag,
+.hljs-built_in,
+.hljs-name,
+.hljs-tag {
+  color: #93c5fd;
+}
+.hljs-string,
+.hljs-attr,
+.hljs-symbol,
+.hljs-bullet,
+.hljs-addition {
+  color: #86efac;
+}
+.hljs-comment,
+.hljs-quote,
+.hljs-deletion,
+.hljs-meta {
+  color: #94a3b8;
+}
+.hljs-number,
+.hljs-variable,
+.hljs-template-variable,
+.hljs-type,
+.hljs-selector-class,
+.hljs-selector-id {
+  color: #fca5a5;
+}
+.hljs-function,
+.hljs-title,
+.hljs-section {
+  color: #c4b5fd;
+}
+.hljs-literal {
+  color: #fdba74;
+}

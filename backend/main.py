@@ -3,7 +3,10 @@ main.py — DevPilot AI FastAPI application entry point.
 """
 from __future__ import annotations
 
+import os
+
 from fastapi import FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
 
 from models import AnalyzeRequest, OnboardingReport
 from analyzer import RepoAnalyzer
@@ -14,6 +17,25 @@ app = FastAPI(
     title="DevPilot AI",
     description="AI Developer Assistant for GitHub repositories",
     version="1.0.0",
+)
+
+# ── CORS ───────────────────────────────────────────────────────────────────────
+# Allow the frontend dev server (and any origin configured via CORS_ORIGINS env
+# var) to call the backend.  In production, set CORS_ORIGINS to the exact
+# frontend domain instead of "*".
+_cors_origins_env = os.getenv("CORS_ORIGINS", "")
+_allowed_origins: list[str] = (
+    [o.strip() for o in _cors_origins_env.split(",") if o.strip()]
+    if _cors_origins_env
+    else ["http://localhost:3000", "http://127.0.0.1:3000"]
+)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=_allowed_origins,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 
