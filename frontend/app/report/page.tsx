@@ -11,19 +11,18 @@ import { SECTION_TITLES } from "@/constants/sections";
 
 export default function ReportPage() {
   const router = useRouter();
-  const [report, setReport] = useState<OnboardingReport | null>(null);
-  const [mounted, setMounted] = useState(false);
+  // Lazy initializer runs only on the client — avoids setState-in-effect
+  const [report] = useState<OnboardingReport | null>(() => {
+    const stored = getStoredReport();
+    return stored ? (stored as OnboardingReport) : null;
+  });
 
   useEffect(() => {
-    setMounted(true);
-    const stored = getStoredReport();
-    if (!stored) {
-      // No report in storage — user navigated directly or refreshed
+    // Only handle the redirect — no setState call inside the effect
+    if (!report) {
       router.replace("/");
-    } else {
-      setReport(stored as OnboardingReport);
     }
-  }, [router]);
+  }, [report, router]);
 
   const handleNewAnalysis = useCallback(() => {
     sessionStorage.removeItem("devpilot_report");
@@ -31,10 +30,10 @@ export default function ReportPage() {
   }, [router]);
 
   // Avoid flash of empty content during SSR hydration
-  if (!mounted || !report) {
+  if (!report) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="h-6 w-6 animate-spin rounded-full border-2 border-blue-600 border-t-transparent" />
+      <div className="min-h-screen bg-[#ECE9E7] flex items-center justify-center">
+        <div className="h-6 w-6 animate-spin rounded-full border-2 border-[#3A0714] border-t-transparent" />
       </div>
     );
   }
@@ -46,7 +45,7 @@ export default function ReportPage() {
     );
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-[#ECE9E7]">
       {/* Sticky top header */}
       <div className="sticky top-0 z-10 shadow-sm">
         <ReportHeader report={report} onNewAnalysis={handleNewAnalysis} />
@@ -57,7 +56,9 @@ export default function ReportPage() {
         <div className="flex gap-6 items-start">
           {/* Sidebar nav — hidden on small screens */}
           <aside className="hidden lg:block w-52 flex-shrink-0 sticky top-24">
-            <SectionNav titles={sectionTitles} />
+            <div className="rounded-xl bg-white border border-[#E2DEDC] p-3 shadow-[0_1px_6px_rgba(58,7,20,0.05)]">
+              <SectionNav titles={sectionTitles} />
+            </div>
           </aside>
 
           {/* Mobile section tabs */}
@@ -67,7 +68,7 @@ export default function ReportPage() {
                 <a
                   key={title}
                   href={`#section-${title.toLowerCase().replace(/\s+/g, "-")}`}
-                  className="flex-shrink-0 rounded-full border border-gray-200 bg-white px-3 py-1 text-xs font-medium text-gray-600 hover:bg-gray-50 transition-colors whitespace-nowrap"
+                  className="flex-shrink-0 rounded-full border border-[#E2DEDC] bg-white px-3 py-1 text-xs font-medium text-[#766A6D] hover:bg-[#F7F2EF] hover:text-[#3A0714] hover:border-[#B85C6E]/40 transition-all duration-150 whitespace-nowrap"
                 >
                   {title}
                 </a>

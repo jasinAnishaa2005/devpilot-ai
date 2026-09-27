@@ -22,7 +22,7 @@ export interface ReportSection {
 }
 
 export interface OnboardingReport {
-  repo_url: string;    // "owner/repo" format (NOT a full URL)
+  repo_url: string;    // short form "owner/repo" as returned by the backend (NOT the full URL)
   repo_name: string;
   sections: ReportSection[]; // always exactly 7 sections in order
   generated_at: string;      // ISO-8601 UTC

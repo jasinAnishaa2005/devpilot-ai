@@ -19,21 +19,26 @@ export function ProgressMessages() {
   const [visible, setVisible] = useState(true);
 
   useEffect(() => {
+    let fadeTimer: ReturnType<typeof setTimeout> | null = null;
+
     const interval = setInterval(() => {
       setVisible(false);
-      setTimeout(() => {
+      fadeTimer = setTimeout(() => {
         setIndex((i) => Math.min(i + 1, MESSAGES.length - 1));
         setVisible(true);
       }, 300);
     }, INTERVAL_MS);
 
-    return () => clearInterval(interval);
+    return () => {
+      clearInterval(interval);
+      if (fadeTimer !== null) clearTimeout(fadeTimer);
+    };
   }, []);
 
   return (
     <p
       className={[
-        "text-sm text-gray-500 transition-opacity duration-300",
+        "text-sm text-[#F7F2EF]/55 transition-opacity duration-300",
         visible ? "opacity-100" : "opacity-0",
       ].join(" ")}
     >

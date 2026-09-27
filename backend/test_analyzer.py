@@ -4,12 +4,20 @@ test_analyzer.py — unit tests for analyzer.py
 Covers:
 - Language detection from file extension counts.
 - Framework detection from file content signals.
-- Dependency extraction: requirements.txt, package.json, Cargo.toml, go.mod.
+- Dependency extraction: requirements.txt, package.json, Cargo.toml, go.mod,
+  CMakeLists.txt, Makefile.
   go.mod tests exercise the fixed parser:
     • block form "require (" and "require(" (no space)
     • closing ")" with a trailing inline comment
     • single-line form
     • // indirect entries inside a block
+- C++ / CMake detection:
+    • .cpp, .cc, .cxx, .h, .hpp counted as languages
+    • CMakeLists.txt picked up in key path selection
+    • find_package / target_link_libraries / pkg_check_modules parsed
+    • CMake framework labels (Qt5, OpenCV, Boost …)
+    • Entry point preference: src/main.cpp > main.cpp, all candidates reported
+    • Makefile detection
 - Key path selection (manifests, README, entry points, depth cap, 30-file cap).
 - Entry point detection.
 - Folder structure mapping (depth truncation).
@@ -30,7 +38,12 @@ import pytest
 sys.path.insert(0, os.path.dirname(__file__))
 
 from unittest.mock import AsyncMock, patch  # noqa: E402
-from analyzer import RepoAnalyzer  # noqa: E402
+from analyzer import (  # noqa: E402
+    RepoAnalyzer,
+    _parse_cmake_deps,
+    _cmake_framework_labels,
+    _is_cpp_project,
+)
 
 
 # ── helpers ───────────────────────────────────────────────────────────────────
@@ -513,3 +526,484 @@ async def test_analyze_tree_nodes_excluded_from_paths():
     # "src" is a tree node and should not appear as a language file
     all_paths = list(result.folder_structure.keys())
     assert "src" in all_paths  # it appears as folder key
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# C++ / CMake detection tests
+# ═══════════════════════════════════════════════════════════════════════════════
+
+# ── _is_cpp_project ────────────────────────────────────────────────────────────
+
+class TestIsCppProject:
+    def test_cpp_file_detected(self):
+        assert _is_cpp_project(["src/main.cpp"]) is True
+
+    def test_cc_file_detected(self):
+        assert _is_cpp_project(["src/engine.cc"]) is True
+
+    def test_cxx_file_detected(self):
+        assert _is_cpp_project(["lib/foo.cxx"]) is True
+
+    def test_hpp_header_detected(self):
+        assert _is_cpp_project(["include/player.hpp"]) is True
+
+    def test_h_header_detected(self):
+        assert _is_cpp_project(["include/utils.h"]) is True
+
+    def test_python_only_is_not_cpp(self):
+        assert _is_cpp_project(["main.py", "app.py"]) is False
+
+    def test_empty_paths_is_not_cpp(self):
+        assert _is_cpp_project([]) is False
+
+
+# ── Language detection — C++ extensions ───────────────────────────────────────
+
+class TestCppLanguageDetection:
+    def test_cpp_counted(self):
+        a = _make_analyzer()
+        langs = a._detect_languages(["src/main.cpp", "src/engine.cpp"])
+        assert langs.get("C++") == 2
+
+    def test_cc_counted_as_cpp(self):
+        a = _make_analyzer()
+        langs = a._detect_languages(["game.cc"])
+        assert langs.get("C++") == 1
+
+    def test_cxx_counted_as_cpp(self):
+        a = _make_analyzer()
+        langs = a._detect_languages(["foo.cxx"])
+        assert langs.get("C++") == 1
+
+    def test_hpp_counted_as_header(self):
+        a = _make_analyzer()
+        langs = a._detect_languages(["include/foo.hpp"])
+        assert langs.get("C/C++ Header") == 1
+
+    def test_h_counted_as_header(self):
+        a = _make_analyzer()
+        langs = a._detect_languages(["include/bar.h"])
+        assert langs.get("C/C++ Header") == 1
+
+    def test_hxx_counted_as_header(self):
+        a = _make_analyzer()
+        langs = a._detect_languages(["include/baz.hxx"])
+        assert langs.get("C/C++ Header") == 1
+
+    def test_mixed_cpp_python(self):
+        a = _make_analyzer()
+        langs = a._detect_languages(["main.cpp", "script.py", "utils.cc"])
+        assert langs.get("C++") == 2
+        assert langs.get("Python") == 1
+
+
+# ── _parse_cmake_deps ─────────────────────────────────────────────────────────
+
+class TestParseCmakeDeps:
+    def test_find_package_basic(self):
+        content = "find_package(OpenCV REQUIRED)\n"
+        deps = _parse_cmake_deps(content)
+        assert "OpenCV" in deps
+
+    def test_find_package_case_insensitive(self):
+        content = "FIND_PACKAGE(Boost REQUIRED COMPONENTS filesystem)\n"
+        deps = _parse_cmake_deps(content)
+        assert "Boost" in deps
+
+    def test_find_package_multiple(self):
+        content = "find_package(Qt5 REQUIRED)\nfind_package(OpenSSL REQUIRED)\n"
+        deps = _parse_cmake_deps(content)
+        assert "Qt5" in deps
+        assert "OpenSSL" in deps
+
+    def test_find_package_no_duplicates(self):
+        content = "find_package(Boost REQUIRED)\nfind_package(Boost COMPONENTS system)\n"
+        deps = _parse_cmake_deps(content)
+        assert deps.count("Boost") == 1
+
+    def test_target_link_libraries_extracts_libs(self):
+        content = "target_link_libraries(myapp PRIVATE OpenSSL::SSL OpenSSL::Crypto)\n"
+        deps = _parse_cmake_deps(content)
+        # At least one of the OpenSSL tokens should be captured
+        assert any("OpenSSL" in d for d in deps)
+
+    def test_target_link_libraries_skips_cmake_keywords(self):
+        content = "target_link_libraries(myapp PUBLIC mylib)\n"
+        deps = _parse_cmake_deps(content)
+        # "PUBLIC" and "myapp" (first token = target) should not appear
+        assert "PUBLIC" not in deps
+        assert "myapp" not in deps
+
+    def test_pkg_check_modules(self):
+        content = "pkg_check_modules(GLIB REQUIRED glib-2.0)\n"
+        deps = _parse_cmake_deps(content)
+        assert "glib-2.0" in deps
+
+    def test_add_subdirectory_top_level_only(self):
+        content = "add_subdirectory(vendor)\nadd_subdirectory(external/third_party)\n"
+        deps = _parse_cmake_deps(content)
+        assert "vendor" in deps
+        # Path with '/' is excluded
+        assert "external/third_party" not in deps
+
+    def test_empty_content_returns_empty(self):
+        deps = _parse_cmake_deps("")
+        assert deps == []
+
+    def test_cmake_version_line_ignored(self):
+        content = "cmake_minimum_required(VERSION 3.20)\nproject(MyApp)\n"
+        deps = _parse_cmake_deps(content)
+        # cmake_minimum_required is not find_package — should not produce deps
+        assert deps == []
+
+
+# ── _cmake_framework_labels ────────────────────────────────────────────────────
+
+class TestCmakeFrameworkLabels:
+    def test_opencv_recognized(self):
+        labels = _cmake_framework_labels(["OpenCV"])
+        assert "OpenCV" in labels
+
+    def test_qt5_recognized(self):
+        labels = _cmake_framework_labels(["Qt5"])
+        assert "Qt5" in labels
+
+    def test_boost_recognized(self):
+        labels = _cmake_framework_labels(["Boost"])
+        assert "Boost" in labels
+
+    def test_sfml_recognized(self):
+        labels = _cmake_framework_labels(["SFML"])
+        assert "SFML" in labels
+
+    def test_sdl2_recognized(self):
+        labels = _cmake_framework_labels(["SDL2"])
+        assert "SDL2" in labels
+
+    def test_eigen3_recognized(self):
+        labels = _cmake_framework_labels(["Eigen3"])
+        assert "Eigen" in labels
+
+    def test_unknown_dep_not_included(self):
+        labels = _cmake_framework_labels(["SomeRandomUnknownLib"])
+        assert labels == []
+
+    def test_no_duplicates(self):
+        labels = _cmake_framework_labels(["OpenCV", "OpenCV"])
+        assert labels.count("OpenCV") == 1
+
+    def test_empty_list_returns_empty(self):
+        assert _cmake_framework_labels([]) == []
+
+
+# ── Framework detection — CMake ────────────────────────────────────────────────
+
+class TestCmakeFrameworkDetection:
+    def test_cmake_always_added_when_cmakelists_present(self):
+        a = _make_analyzer()
+        content = "cmake_minimum_required(VERSION 3.20)\nproject(Game)\n"
+        files: dict[str, Optional[str]] = {"CMakeLists.txt": content}
+        fw = a._detect_frameworks(files)
+        assert "CMake" in fw
+
+    def test_cmake_with_opencv_detected(self):
+        a = _make_analyzer()
+        content = "find_package(OpenCV REQUIRED)\n"
+        files: dict[str, Optional[str]] = {"CMakeLists.txt": content}
+        fw = a._detect_frameworks(files)
+        assert "CMake" in fw
+        assert "OpenCV" in fw
+
+    def test_cmake_with_sfml_detected(self):
+        a = _make_analyzer()
+        content = "find_package(SFML REQUIRED COMPONENTS graphics window system)\n"
+        files: dict[str, Optional[str]] = {"CMakeLists.txt": content}
+        fw = a._detect_frameworks(files)
+        assert "SFML" in fw
+
+    def test_cmake_with_boost_detected(self):
+        a = _make_analyzer()
+        content = "find_package(Boost REQUIRED COMPONENTS filesystem thread)\n"
+        files: dict[str, Optional[str]] = {"CMakeLists.txt": content}
+        fw = a._detect_frameworks(files)
+        assert "Boost" in fw
+
+    def test_cmake_not_duplicated(self):
+        a = _make_analyzer()
+        content = "find_package(Qt5 REQUIRED)\n"
+        files: dict[str, Optional[str]] = {"CMakeLists.txt": content}
+        fw = a._detect_frameworks(files)
+        assert fw.count("CMake") == 1
+
+    def test_none_cmake_content_skipped(self):
+        a = _make_analyzer()
+        files: dict[str, Optional[str]] = {"CMakeLists.txt": None}
+        fw = a._detect_frameworks(files)
+        assert "CMake" not in fw
+
+    def test_existing_python_frameworks_unaffected(self):
+        a = _make_analyzer()
+        files: dict[str, Optional[str]] = {
+            "requirements.txt": "fastapi>=0.111\n",
+            "CMakeLists.txt": "find_package(OpenCV REQUIRED)\n",
+        }
+        fw = a._detect_frameworks(files)
+        assert "FastAPI" in fw
+        assert "CMake" in fw
+        assert "OpenCV" in fw
+
+
+# ── CMake dependency extraction ────────────────────────────────────────────────
+
+class TestExtractCmakeDependencies:
+    def test_cmake_build_system_always_recorded(self):
+        a = _make_analyzer()
+        files: dict[str, Optional[str]] = {
+            "CMakeLists.txt": "cmake_minimum_required(VERSION 3.20)\n"
+        }
+        deps = a._extract_dependencies(files)
+        assert "cmake_build_system" in deps
+        assert deps["cmake_build_system"] == ["CMake"]
+
+    def test_cmake_find_package_deps_recorded(self):
+        a = _make_analyzer()
+        files: dict[str, Optional[str]] = {
+            "CMakeLists.txt": "find_package(OpenCV REQUIRED)\nfind_package(Boost REQUIRED)\n"
+        }
+        deps = a._extract_dependencies(files)
+        assert "cmake" in deps
+        assert "OpenCV" in deps["cmake"]
+        assert "Boost" in deps["cmake"]
+
+    def test_cmake_deps_merged_across_multiple_files(self):
+        """Multiple CMakeLists.txt (root + subdir) are merged into one list."""
+        a = _make_analyzer()
+        files: dict[str, Optional[str]] = {
+            "CMakeLists.txt": "find_package(OpenCV REQUIRED)\n",
+            "src/CMakeLists.txt": "find_package(Boost REQUIRED)\n",
+        }
+        deps = a._extract_dependencies(files)
+        assert "cmake" in deps
+        assert "OpenCV" in deps["cmake"]
+        assert "Boost" in deps["cmake"]
+
+    def test_cmake_no_duplicates_after_merge(self):
+        a = _make_analyzer()
+        files: dict[str, Optional[str]] = {
+            "CMakeLists.txt": "find_package(OpenCV REQUIRED)\n",
+            "src/CMakeLists.txt": "find_package(OpenCV REQUIRED)\n",
+        }
+        deps = a._extract_dependencies(files)
+        assert deps.get("cmake", []).count("OpenCV") == 1
+
+    def test_makefile_build_system_recorded(self):
+        a = _make_analyzer()
+        files: dict[str, Optional[str]] = {"Makefile": "all:\n\tg++ main.cpp -o app\n"}
+        deps = a._extract_dependencies(files)
+        assert "make_build_system" in deps
+        assert deps["make_build_system"] == ["Make"]
+
+    def test_makefile_lowercase_recorded(self):
+        a = _make_analyzer()
+        files: dict[str, Optional[str]] = {"makefile": "all:\n\tmake\n"}
+        deps = a._extract_dependencies(files)
+        assert "make_build_system" in deps
+
+    def test_cmake_none_content_skipped(self):
+        a = _make_analyzer()
+        files: dict[str, Optional[str]] = {"CMakeLists.txt": None}
+        deps = a._extract_dependencies(files)
+        assert "cmake" not in deps
+        assert "cmake_build_system" not in deps
+
+    def test_existing_python_deps_unaffected(self):
+        a = _make_analyzer()
+        files: dict[str, Optional[str]] = {
+            "requirements.txt": "fastapi\n",
+            "CMakeLists.txt": "find_package(OpenCV REQUIRED)\n",
+        }
+        deps = a._extract_dependencies(files)
+        assert "python" in deps
+        assert "cmake" in deps
+
+
+# ── C++ entry point detection ─────────────────────────────────────────────────
+
+class TestCppEntryPoints:
+    def test_src_main_cpp_detected(self):
+        a = _make_analyzer()
+        eps = a._detect_entry_points(["src/main.cpp", "include/utils.hpp"])
+        assert "src/main.cpp" in eps
+
+    def test_root_main_cpp_fallback(self):
+        a = _make_analyzer()
+        eps = a._detect_entry_points(["main.cpp", "include/utils.hpp"])
+        assert "main.cpp" in eps
+
+    def test_src_preferred_over_root(self):
+        """When both src/main.cpp and main.cpp exist, only src/ candidates returned."""
+        a = _make_analyzer()
+        eps = a._detect_entry_points(["main.cpp", "src/main.cpp"])
+        assert "src/main.cpp" in eps
+        # root main.cpp suppressed because src/ candidate exists
+        assert "main.cpp" not in eps
+
+    def test_main_cc_variant_detected(self):
+        a = _make_analyzer()
+        eps = a._detect_entry_points(["src/main.cc"])
+        assert "src/main.cc" in eps
+
+    def test_main_cxx_variant_detected(self):
+        a = _make_analyzer()
+        eps = a._detect_entry_points(["src/main.cxx"])
+        assert "src/main.cxx" in eps
+
+    def test_multiple_cpp_mains_in_src_all_reported(self):
+        """Two mains in different subdirs are both reported."""
+        a = _make_analyzer()
+        eps = a._detect_entry_points(["src/main.cpp", "server/main.cpp"])
+        assert "src/main.cpp" in eps
+        assert "server/main.cpp" in eps
+
+    def test_cpp_and_python_entry_points_both_detected(self):
+        a = _make_analyzer()
+        eps = a._detect_entry_points(["main.py", "src/main.cpp"])
+        assert "main.py" in eps
+        assert "src/main.cpp" in eps
+
+    def test_non_main_cpp_not_an_entry_point(self):
+        a = _make_analyzer()
+        eps = a._detect_entry_points(["src/engine.cpp", "src/player.cpp"])
+        assert eps == []
+
+
+# ── Key path selection — C++ manifests ────────────────────────────────────────
+
+class TestSelectKeyPathsCpp:
+    def test_cmakelists_at_root_included(self):
+        a = _make_analyzer()
+        selected = a._select_key_paths(["CMakeLists.txt", "src/main.cpp"])
+        assert "CMakeLists.txt" in selected
+
+    def test_cmakelists_depth_1_included(self):
+        a = _make_analyzer()
+        selected = a._select_key_paths(["src/CMakeLists.txt"])
+        assert "src/CMakeLists.txt" in selected
+
+    def test_cmakelists_depth_3_excluded(self):
+        a = _make_analyzer()
+        selected = a._select_key_paths(["a/b/c/CMakeLists.txt"])
+        assert "a/b/c/CMakeLists.txt" not in selected
+
+    def test_makefile_at_root_included(self):
+        a = _make_analyzer()
+        selected = a._select_key_paths(["Makefile", "src/main.cpp"])
+        assert "Makefile" in selected
+
+    def test_makefile_lowercase_included(self):
+        a = _make_analyzer()
+        selected = a._select_key_paths(["makefile"])
+        assert "makefile" in selected
+
+    def test_src_main_cpp_as_entry_point_included(self):
+        a = _make_analyzer()
+        selected = a._select_key_paths(["src/main.cpp", "include/utils.hpp"])
+        assert "src/main.cpp" in selected
+
+    def test_root_main_cpp_as_entry_point_included(self):
+        a = _make_analyzer()
+        selected = a._select_key_paths(["main.cpp"])
+        assert "main.cpp" in selected
+
+
+# ── Full analyze() — C++ project (network mocked) ─────────────────────────────
+
+_CPP_FAKE_TREE = [
+    {"path": "README.md",           "type": "blob"},
+    {"path": "CMakeLists.txt",      "type": "blob"},
+    {"path": "src/main.cpp",        "type": "blob"},
+    {"path": "src/game.cpp",        "type": "blob"},
+    {"path": "include/game.hpp",    "type": "blob"},
+    {"path": "src",                 "type": "tree"},
+    {"path": "include",             "type": "tree"},
+]
+
+_CPP_FAKE_FILES = {
+    "README.md": "# RoyalEscape\nA C++ game built with SFML.",
+    "CMakeLists.txt": (
+        "cmake_minimum_required(VERSION 3.20)\n"
+        "project(RoyalEscape)\n"
+        "find_package(SFML REQUIRED COMPONENTS graphics window system)\n"
+        "add_executable(RoyalEscape src/main.cpp src/game.cpp)\n"
+        "target_link_libraries(RoyalEscape PRIVATE sfml-graphics sfml-window sfml-system)\n"
+    ),
+    "src/main.cpp": "int main() { return 0; }\n",
+}
+
+
+@pytest.mark.asyncio
+async def test_cpp_analyze_detects_cpp_language():
+    analyzer = RepoAnalyzer("https://github.com/owner/RoyalEscape", branch="main")
+    with patch("analyzer.fetch_repo_tree", new_callable=AsyncMock) as mock_tree, \
+         patch("analyzer.fetch_files_batch", new_callable=AsyncMock) as mock_files:
+        mock_tree.return_value = _CPP_FAKE_TREE
+        mock_files.return_value = _CPP_FAKE_FILES
+        result = await analyzer.analyze()
+    assert "C++" in result.languages
+
+
+@pytest.mark.asyncio
+async def test_cpp_analyze_detects_cmake_framework():
+    analyzer = RepoAnalyzer("https://github.com/owner/RoyalEscape", branch="main")
+    with patch("analyzer.fetch_repo_tree", new_callable=AsyncMock) as mock_tree, \
+         patch("analyzer.fetch_files_batch", new_callable=AsyncMock) as mock_files:
+        mock_tree.return_value = _CPP_FAKE_TREE
+        mock_files.return_value = _CPP_FAKE_FILES
+        result = await analyzer.analyze()
+    assert "CMake" in result.frameworks
+    assert "SFML" in result.frameworks
+
+
+@pytest.mark.asyncio
+async def test_cpp_analyze_records_cmake_build_system_dep():
+    analyzer = RepoAnalyzer("https://github.com/owner/RoyalEscape", branch="main")
+    with patch("analyzer.fetch_repo_tree", new_callable=AsyncMock) as mock_tree, \
+         patch("analyzer.fetch_files_batch", new_callable=AsyncMock) as mock_files:
+        mock_tree.return_value = _CPP_FAKE_TREE
+        mock_files.return_value = _CPP_FAKE_FILES
+        result = await analyzer.analyze()
+    assert "cmake_build_system" in result.dependencies
+
+
+@pytest.mark.asyncio
+async def test_cpp_analyze_cmake_deps_contain_sfml():
+    analyzer = RepoAnalyzer("https://github.com/owner/RoyalEscape", branch="main")
+    with patch("analyzer.fetch_repo_tree", new_callable=AsyncMock) as mock_tree, \
+         patch("analyzer.fetch_files_batch", new_callable=AsyncMock) as mock_files:
+        mock_tree.return_value = _CPP_FAKE_TREE
+        mock_files.return_value = _CPP_FAKE_FILES
+        result = await analyzer.analyze()
+    assert "cmake" in result.dependencies
+    assert "SFML" in result.dependencies["cmake"]
+
+
+@pytest.mark.asyncio
+async def test_cpp_analyze_detects_src_main_cpp_entry_point():
+    analyzer = RepoAnalyzer("https://github.com/owner/RoyalEscape", branch="main")
+    with patch("analyzer.fetch_repo_tree", new_callable=AsyncMock) as mock_tree, \
+         patch("analyzer.fetch_files_batch", new_callable=AsyncMock) as mock_files:
+        mock_tree.return_value = _CPP_FAKE_TREE
+        mock_files.return_value = _CPP_FAKE_FILES
+        result = await analyzer.analyze()
+    assert "src/main.cpp" in result.entry_points
+
+
+@pytest.mark.asyncio
+async def test_cpp_analyze_header_files_counted():
+    analyzer = RepoAnalyzer("https://github.com/owner/RoyalEscape", branch="main")
+    with patch("analyzer.fetch_repo_tree", new_callable=AsyncMock) as mock_tree, \
+         patch("analyzer.fetch_files_batch", new_callable=AsyncMock) as mock_files:
+        mock_tree.return_value = _CPP_FAKE_TREE
+        mock_files.return_value = _CPP_FAKE_FILES
+        result = await analyzer.analyze()
+    assert result.languages.get("C/C++ Header", 0) >= 1

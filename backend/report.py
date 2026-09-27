@@ -107,10 +107,6 @@ class ReportGenerator:
         langs = ", ".join(r.languages.keys()) or "unknown"
         frameworks = ", ".join(r.frameworks) or "none detected"
         entry_points = "\n".join(f"- `{e}`" for e in r.entry_points) or "- Not detected"
-        dep_lines: list[str] = []
-        for eco, pkgs in r.dependencies.items():
-            dep_lines.append(f"**{eco}**: {', '.join(pkgs[:10])}")
-        deps_text = "\n".join(dep_lines) or "No dependency files detected."
         routes = r.api_routes[:8]
         routes_text = (
             "\n".join(f"- `{rt['method']} {rt['path']}`" for rt in routes)
@@ -119,6 +115,95 @@ class ReportGenerator:
         )
         readme = r.readme_summary or "No README found."
 
+        is_cmake = "cmake_build_system" in r.dependencies or "CMake" in r.frameworks
+        is_make  = "make_build_system"  in r.dependencies and not is_cmake
+
+        # ── Dependencies section ───────────────────────────────────────────────
+        dep_lines: list[str] = []
+        for eco, pkgs in r.dependencies.items():
+            if eco == "cmake_build_system":
+                dep_lines.append("**Build system:** CMake")
+            elif eco == "make_build_system":
+                dep_lines.append("**Build system:** Make")
+            elif eco == "cmake":
+                dep_lines.append(f"**CMake dependencies:** {', '.join(pkgs[:15])}")
+            else:
+                dep_lines.append(f"**{eco}**: {', '.join(pkgs[:10])}")
+        deps_text = "\n".join(dep_lines) if dep_lines else "No dependency files detected."
+
+        # ── Architecture section ───────────────────────────────────────────────
+        top_folders = ", ".join(f"`{k}`" for k in r.folder_structure.keys()) or "N/A"
+        if is_cmake or is_make:
+            has_src     = "src"     in r.folder_structure
+            has_include = "include" in r.folder_structure
+            has_lib     = "lib"     in r.folder_structure
+            has_test    = any(k in r.folder_structure for k in ("test", "tests"))
+            cpp_notes: list[str] = []
+            if has_src:
+                cpp_notes.append("- `src/` — C++ source files")
+            if has_include:
+                cpp_notes.append("- `include/` — public header files")
+            if has_lib:
+                cpp_notes.append("- `lib/` — third-party or utility libraries")
+            if has_test:
+                cpp_notes.append("- `test/` or `tests/` — test suite")
+            build_sys = "CMake" if is_cmake else "Make"
+            arch_text = (
+                f"Top-level folders: {top_folders}.\n\n"
+                f"**Build system:** {build_sys}  \n"
+                f"**Stack:** {frameworks}\n\n"
+            )
+            if cpp_notes:
+                arch_text += "**Directory layout:**\n" + "\n".join(cpp_notes) + "\n\n"
+            arch_text += f"Entry points indicate the program starts from:\n{entry_points}"
+        else:
+            arch_text = (
+                f"Top-level folders: {top_folders}.\n\n"
+                f"Detected frameworks suggest the following stack: {frameworks}.\n\n"
+                f"Entry points indicate the application starts from:\n{entry_points}"
+            )
+
+        # ── Setup Instructions section ─────────────────────────────────────────
+        clone_cmd = (
+            f"1. Clone the repository:\n"
+            f"   ```\n"
+            f"   git clone https://github.com/{r.owner}/{r.repo_name}.git\n"
+            f"   ```"
+        )
+        if is_cmake:
+            setup_text = (
+                f"{clone_cmd}\n"
+                "2. Configure and build with CMake:\n"
+                "   ```\n"
+                f"   cd {r.repo_name}\n"
+                "   mkdir build\n"
+                "   cd build\n"
+                "   cmake ..\n"
+                "   cmake --build .\n"
+                "   ```\n"
+                "3. If the project uses `find_package()` dependencies, install them first "
+                "(e.g. via your system package manager, vcpkg, or Conan).\n"
+                "4. Run the compiled binary from the `build/` directory."
+            )
+        elif is_make:
+            setup_text = (
+                f"{clone_cmd}\n"
+                "2. Build with Make:\n"
+                "   ```\n"
+                f"   cd {r.repo_name}\n"
+                "   make\n"
+                "   ```\n"
+                "3. Run the compiled binary (check the Makefile for the default target name)."
+            )
+        else:
+            setup_text = (
+                f"1. Clone the repository: `git clone https://github.com/"
+                f"{r.owner}/{r.repo_name}.git`\n"
+                "2. Install dependencies (see Dependencies section).\n"
+                "3. Copy `.env.example` to `.env` and fill in required variables (if present).\n"
+                "4. Run the application via the detected entry point."
+            )
+
         sections: dict[str, str] = {
             "Project Overview": (
                 f"`{r.owner}/{r.repo_name}` (branch: `{r.branch}`).\n\n"
@@ -126,22 +211,12 @@ class ReportGenerator:
                 f"**Frameworks/Libraries:** {frameworks}\n\n"
                 f"{readme[:300]}"
             ),
-            "Architecture": (
-                f"Top-level folders: {', '.join(f'`{k}`' for k in r.folder_structure.keys()) or 'N/A'}.\n\n"
-                f"Detected frameworks suggest the following stack: {frameworks}.\n\n"
-                f"Entry points indicate the application starts from:\n{entry_points}"
-            ),
+            "Architecture": arch_text,
             "Important Files": (
                 f"**Entry points:**\n{entry_points}\n\n"
                 f"**Detected API routes:**\n{routes_text}"
             ),
-            "Setup Instructions": (
-                "1. Clone the repository: `git clone https://github.com/"
-                f"{r.owner}/{r.repo_name}.git`\n"
-                "2. Install dependencies (see Dependencies section).\n"
-                "3. Copy `.env.example` to `.env` and fill in required variables (if present).\n"
-                "4. Run the application via the detected entry point."
-            ),
+            "Setup Instructions": setup_text,
             "Dependencies": deps_text,
             "Potential Risks": (
                 "- Verify all environment variables and secrets are configured before running.\n"
@@ -155,7 +230,7 @@ class ReportGenerator:
                 "1. Read the README and any docs/ folder thoroughly.\n"
                 "2. Get the application running locally end-to-end.\n"
                 "3. Explore the entry points and trace one request through the codebase.\n"
-                "4. Run the existing test suite (look for `pytest`, `jest`, `go test`, etc.).\n"
+                "4. Run the existing test suite (look for `pytest`, `jest`, `go test`, `ctest`, etc.).\n"
                 "5. Pick a small open issue or TODO to familiarise yourself with the PR workflow."
             ),
         }

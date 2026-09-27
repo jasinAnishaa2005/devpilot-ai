@@ -32,7 +32,12 @@ _EXT_TO_LANG: dict[str, str] = {
     ".php": "PHP",
     ".cs": "C#",
     ".cpp": "C++",
+    ".cc": "C++",
+    ".cxx": "C++",
     ".c": "C",
+    ".h": "C/C++ Header",
+    ".hpp": "C/C++ Header",
+    ".hxx": "C/C++ Header",
     ".swift": "Swift",
     ".scala": "Scala",
     ".html": "HTML",
@@ -49,6 +54,153 @@ _EXT_TO_LANG: dict[str, str] = {
     ".sql": "SQL",
     ".tf": "Terraform",
 }
+
+# ── C++ detection helpers ──────────────────────────────────────────────────────
+
+# Extensions that identify a C++ source file (not headers)
+_CPP_SOURCE_EXTS = {".cpp", ".cc", ".cxx"}
+# Extensions that identify a C/C++ header
+_CPP_HEADER_EXTS = {".h", ".hpp", ".hxx"}
+
+# CMake find_package() — captures the package name (first token after the command)
+_CMAKE_FIND_PACKAGE_RE = re.compile(
+    r"^\s*find_package\s*\(\s*([A-Za-z0-9_\-]+)", re.MULTILINE | re.IGNORECASE
+)
+# target_link_libraries() — captures each library token (non-whitespace, non-paren)
+_CMAKE_LINK_LIBS_RE = re.compile(
+    r"^\s*target_link_libraries\s*\([^)]*\)", re.MULTILINE | re.IGNORECASE | re.DOTALL
+)
+# pkg_check_modules() — captures the module list after the target name
+_CMAKE_PKG_CHECK_RE = re.compile(
+    r"^\s*pkg_check_modules\s*\(\s*\S+\s+([^)]+)\)", re.MULTILINE | re.IGNORECASE
+)
+# add_subdirectory() — captures the directory name
+_CMAKE_SUBDIR_RE = re.compile(
+    r"^\s*add_subdirectory\s*\(\s*([A-Za-z0-9_.\-/]+)", re.MULTILINE | re.IGNORECASE
+)
+
+# Known CMake package names → human-readable framework label
+_CMAKE_KNOWN_FRAMEWORKS: dict[str, str] = {
+    "qt5": "Qt5",
+    "qt6": "Qt6",
+    "qt": "Qt",
+    "boost": "Boost",
+    "openssl": "OpenSSL",
+    "opengl": "OpenGL",
+    "glfw3": "GLFW",
+    "glfw": "GLFW",
+    "glew": "GLEW",
+    "glm": "GLM",
+    "sfml": "SFML",
+    "sdl2": "SDL2",
+    "sdl": "SDL",
+    "wxwidgets": "wxWidgets",
+    "gtk": "GTK",
+    "gtkmm": "GTKmm",
+    "opencv": "OpenCV",
+    "eigen3": "Eigen",
+    "eigen": "Eigen",
+    "protobuf": "Protobuf",
+    "grpc": "gRPC",
+    "zlib": "zlib",
+    "curl": "libcurl",
+    "libcurl": "libcurl",
+    "sqlite3": "SQLite",
+    "sqlite": "SQLite",
+    "gtest": "Google Test",
+    "googletest": "Google Test",
+    "catch2": "Catch2",
+    "fmt": "fmtlib",
+    "spdlog": "spdlog",
+    "nlohmannjson": "nlohmann/json",
+    "abseil": "Abseil",
+    "tbb": "Intel TBB",
+    "openmp": "OpenMP",
+    "mpi": "MPI",
+    "cuda": "CUDA",
+    "vulkan": "Vulkan",
+    "directx": "DirectX",
+    "assimp": "Assimp",
+    "bullet": "Bullet Physics",
+    "box2d": "Box2D",
+    "yaml-cpp": "yaml-cpp",
+    "yamlcpp": "yaml-cpp",
+}
+
+
+def _is_cpp_project(paths: list[str]) -> bool:
+    """Return True if the file tree contains C++ source files."""
+    for p in paths:
+        ext = "." + p.rsplit(".", 1)[-1].lower() if "." in p else ""
+        if ext in _CPP_SOURCE_EXTS or ext in _CPP_HEADER_EXTS:
+            return True
+    return False
+
+
+def _parse_cmake_deps(content: str) -> list[str]:
+    """
+    Extract external dependency names from CMakeLists.txt content.
+
+    Recognises:
+      - find_package(PkgName ...)
+      - target_link_libraries(... libname ...)   (keyword-filtered)
+      - pkg_check_modules(TARGET lib1 lib2 ...)
+      - add_subdirectory(name)                   (only top-level names w/o '/')
+    """
+    deps: list[str] = []
+    seen: set[str] = set()
+
+    def _add(name: str) -> None:
+        key = name.lower().strip()
+        if key and key not in seen:
+            seen.add(key)
+            deps.append(name.strip())
+
+    # find_package() calls
+    for m in _CMAKE_FIND_PACKAGE_RE.finditer(content):
+        _add(m.group(1))
+
+    # target_link_libraries() — extract token-by-token, skip CMake keywords
+    _CMAKE_LINK_KW = {
+        "public", "private", "interface", "target_link_libraries",
+        "target_link_options", "keywords_missing_values",
+    }
+    for block_m in _CMAKE_LINK_LIBS_RE.finditer(content):
+        block = block_m.group(0)
+        # Strip outer parens content
+        inner = re.search(r"\(([^)]*)\)", block, re.DOTALL)
+        if inner:
+            tokens = inner.group(1).split()
+            # First token is always the target name — skip it
+            for tok in tokens[1:]:
+                clean = tok.strip("()")
+                if clean and not clean.startswith("$") and clean.lower() not in _CMAKE_LINK_KW:
+                    _add(clean)
+
+    # pkg_check_modules() — everything after the first arg
+    for m in _CMAKE_PKG_CHECK_RE.finditer(content):
+        for mod in m.group(1).split():
+            _add(mod.strip())
+
+    # add_subdirectory() — only direct children (no '/' in name)
+    for m in _CMAKE_SUBDIR_RE.finditer(content):
+        name = m.group(1).strip()
+        if "/" not in name:
+            _add(name)
+
+    return deps
+
+
+def _cmake_framework_labels(dep_names: list[str]) -> list[str]:
+    """Map raw CMake dependency names to human-readable framework labels."""
+    labels: list[str] = []
+    for name in dep_names:
+        key = name.lower().replace("-", "").replace("_", "").replace("::", "")
+        label = _CMAKE_KNOWN_FRAMEWORKS.get(key) or _CMAKE_KNOWN_FRAMEWORKS.get(name.lower())
+        if label and label not in labels:
+            labels.append(label)
+    return labels
+
 
 # ── Framework signals ──────────────────────────────────────────────────────────
 
@@ -111,7 +263,13 @@ _ENTRY_POINT_NAMES = {
     "main.rs", "src/main.rs",
     "Application.java",
     "Program.cs",
+    # C/C++ entry points — prefer src/ first, then root
+    "src/main.cpp", "src/main.cc", "src/main.cxx",
+    "main.cpp", "main.cc", "main.cxx",
 }
+
+# C++ entry point basename set for fast lookup
+_CPP_MAIN_BASENAMES = {"main.cpp", "main.cc", "main.cxx", "main.c"}
 
 # ── API route patterns ─────────────────────────────────────────────────────────
 
@@ -180,6 +338,15 @@ class RepoAnalyzer:
             "setup.py",
             "setup.cfg",
             "Pipfile",
+            # C++ build system manifests
+            "CMakeLists.txt",
+            "Makefile",
+            "makefile",
+            "GNUmakefile",
+            "meson.build",
+            "conanfile.txt",
+            "conanfile.py",
+            "vcpkg.json",
         }
         for p in paths:
             basename = p.split("/")[-1]
@@ -189,7 +356,7 @@ class RepoAnalyzer:
             # README variants
             elif basename.lower() in {"readme.md", "readme.rst", "readme.txt"} and depth == 0:
                 selected.append(p)
-            # Entry points
+            # Entry points (covers both scripted and C++ mains)
             elif p in _ENTRY_POINT_NAMES or basename in _ENTRY_POINT_NAMES:
                 selected.append(p)
         # Cap at 30 files to stay well within rate limits
@@ -211,10 +378,20 @@ class RepoAnalyzer:
             if content is None:
                 continue
             basename = path.split("/")[-1]
+            # Existing signal-based detection (Python, JS, Java, Rust, Go, Ruby)
             signals = _FRAMEWORK_SIGNALS.get(basename, [])
             for pkg, label in signals:
                 if pkg.lower() in content.lower() and label not in found:
                     found.append(label)
+            # CMake-specific framework detection
+            if basename == "CMakeLists.txt":
+                cmake_deps = _parse_cmake_deps(content)
+                for label in _cmake_framework_labels(cmake_deps):
+                    if label not in found:
+                        found.append(label)
+                # Always annotate CMake itself as the build system
+                if "CMake" not in found:
+                    found.insert(0, "CMake")
         return found
 
     def _extract_dependencies(self, files: dict[str, Optional[str]]) -> dict[str, list[str]]:
@@ -283,14 +460,62 @@ class RepoAnalyzer:
                 if go_deps:
                     deps["go"] = go_deps
 
+            elif basename == "CMakeLists.txt":
+                cmake_deps = _parse_cmake_deps(content)
+                if cmake_deps:
+                    # Merge across multiple CMakeLists.txt files in the repo
+                    existing = deps.get("cmake", [])
+                    seen = set(existing)
+                    merged = list(existing)
+                    for d in cmake_deps:
+                        if d not in seen:
+                            seen.add(d)
+                            merged.append(d)
+                    deps["cmake"] = merged
+                # Always record CMake itself as the build system
+                if "cmake_build_system" not in deps:
+                    deps["cmake_build_system"] = ["CMake"]
+
+            elif basename in {"Makefile", "makefile", "GNUmakefile"}:
+                if "make_build_system" not in deps:
+                    deps["make_build_system"] = ["Make"]
+
         return deps
 
     def _detect_entry_points(self, paths: list[str]) -> list[str]:
+        """
+        Return likely entry point files.
+
+        For C++ projects:
+          - Prefer src/main.cpp (and .cc/.cxx variants) over root-level main.cpp.
+          - If multiple candidates exist at the same priority level, report all.
+          - For other ecosystems the existing set-membership logic is unchanged.
+        """
         result: list[str] = []
+        cpp_src_mains: list[str] = []   # paths like src/main.cpp, game/main.cc
+        cpp_root_mains: list[str] = []  # paths like main.cpp at depth 0
+
         for p in paths:
             basename = p.split("/")[-1]
+            depth = p.count("/")
+
+            if basename in _CPP_MAIN_BASENAMES:
+                if depth == 0:
+                    cpp_root_mains.append(p)
+                else:
+                    cpp_src_mains.append(p)
+                continue  # handled separately below
+
             if p in _ENTRY_POINT_NAMES or basename in _ENTRY_POINT_NAMES:
                 result.append(p)
+
+        # C++ entry point strategy: prefer src-level, fall back to root-level.
+        # Report all candidates so the developer can choose.
+        if cpp_src_mains:
+            result.extend(cpp_src_mains)
+        elif cpp_root_mains:
+            result.extend(cpp_root_mains)
+
         return result
 
     def _map_folder_structure(self, paths: list[str], max_depth: int = 3) -> dict:

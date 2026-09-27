@@ -240,3 +240,242 @@ class TestGenerate:
         # Should parse without error as ISO-8601
         parsed = datetime.fromisoformat(report.generated_at)
         assert parsed is not None
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# C++ / CMake template rendering tests
+# ═══════════════════════════════════════════════════════════════════════════════
+
+def _make_cpp_result(
+    with_src: bool = True,
+    with_include: bool = True,
+    with_test: bool = False,
+    entry_points: list[str] | None = None,
+    cmake_deps: list[str] | None = None,
+    frameworks: list[str] | None = None,
+) -> AnalysisResult:
+    """Build a minimal AnalysisResult that looks like a C++ CMake project."""
+    folder_structure: dict = {}
+    if with_src:
+        folder_structure["src"] = {}
+    if with_include:
+        folder_structure["include"] = {}
+    if with_test:
+        folder_structure["tests"] = {}
+
+    deps: dict[str, list[str]] = {"cmake_build_system": ["CMake"]}
+    if cmake_deps:
+        deps["cmake"] = cmake_deps
+
+    return AnalysisResult(
+        repo_url="https://github.com/owner/RoyalEscape",
+        repo_name="RoyalEscape",
+        owner="owner",
+        branch="main",
+        languages={"C++": 5, "C/C++ Header": 3},
+        frameworks=frameworks if frameworks is not None else ["CMake", "SFML"],
+        dependencies=deps,
+        entry_points=entry_points if entry_points is not None else ["src/main.cpp"],
+        folder_structure=folder_structure,
+        api_routes=[],
+        readme_summary="A C++ game engine built with SFML.",
+    )
+
+
+def _render_cpp(result: AnalysisResult | None = None, **kwargs) -> dict:
+    import json
+    r = result if result is not None else _make_cpp_result(**kwargs)
+    import report as report_module
+    original_key = report_module._OPENAI_API_KEY
+    report_module._OPENAI_API_KEY = None
+    try:
+        gen = ReportGenerator(r)
+        raw = gen._render_template()
+    finally:
+        report_module._OPENAI_API_KEY = original_key
+    return json.loads(raw)
+
+
+class TestCppRenderTemplate:
+    # ── Project Overview ───────────────────────────────────────────────────────
+
+    def test_project_overview_mentions_cpp(self):
+        data = _render_cpp()
+        assert "C++" in data["Project Overview"]
+
+    def test_project_overview_mentions_sfml(self):
+        data = _render_cpp()
+        assert "SFML" in data["Project Overview"]
+
+    def test_project_overview_mentions_cmake(self):
+        data = _render_cpp()
+        assert "CMake" in data["Project Overview"]
+
+    # ── Architecture ───────────────────────────────────────────────────────────
+
+    def test_architecture_mentions_cmake_build_system(self):
+        data = _render_cpp()
+        assert "CMake" in data["Architecture"]
+
+    def test_architecture_mentions_src_directory(self):
+        data = _render_cpp(with_src=True)
+        assert "src" in data["Architecture"]
+
+    def test_architecture_mentions_include_directory(self):
+        data = _render_cpp(with_include=True)
+        assert "include" in data["Architecture"]
+
+    def test_architecture_mentions_test_directory_when_present(self):
+        data = _render_cpp(with_test=True)
+        arch = data["Architecture"]
+        assert "test" in arch.lower()
+
+    def test_architecture_no_test_mention_when_absent(self):
+        data = _render_cpp(with_test=False)
+        # "test" should not appear when there is no test folder
+        assert "test" not in data["Architecture"].lower()
+
+    def test_architecture_mentions_entry_point(self):
+        data = _render_cpp()
+        assert "main.cpp" in data["Architecture"]
+
+    def test_architecture_no_src_note_when_no_src_folder(self):
+        # No src/ or include/ folder → no "Directory layout" bullet block
+        data = _render_cpp(with_src=False, with_include=False)
+        assert "Directory layout" not in data["Architecture"]
+        assert "src/` — C++ source files" not in data["Architecture"]
+
+    # ── Setup Instructions ─────────────────────────────────────────────────────
+
+    def test_setup_contains_cmake_configure_command(self):
+        data = _render_cpp()
+        assert "cmake .." in data["Setup Instructions"]
+
+    def test_setup_contains_cmake_build_command(self):
+        data = _render_cpp()
+        assert "cmake --build" in data["Setup Instructions"]
+
+    def test_setup_contains_mkdir_build(self):
+        data = _render_cpp()
+        assert "mkdir build" in data["Setup Instructions"]
+
+    def test_setup_contains_clone_command(self):
+        data = _render_cpp()
+        assert "git clone" in data["Setup Instructions"]
+
+    def test_setup_contains_repo_name_in_cd(self):
+        data = _render_cpp()
+        assert "RoyalEscape" in data["Setup Instructions"]
+
+    def test_setup_mentions_find_package_note(self):
+        data = _render_cpp()
+        assert "find_package" in data["Setup Instructions"]
+
+    def test_setup_no_pip_install_for_cpp(self):
+        """The C++ setup path must not contain Python install instructions."""
+        data = _render_cpp()
+        assert "pip install" not in data["Setup Instructions"]
+        assert ".env.example" not in data["Setup Instructions"]
+
+    # ── Dependencies ───────────────────────────────────────────────────────────
+
+    def test_dependencies_mentions_cmake_build_system(self):
+        data = _render_cpp()
+        assert "CMake" in data["Dependencies"]
+
+    def test_dependencies_mentions_cmake_deps_when_present(self):
+        data = _render_cpp(cmake_deps=["SFML", "OpenCV", "Boost"])
+        assert "SFML" in data["Dependencies"]
+        assert "OpenCV" in data["Dependencies"]
+
+    def test_dependencies_no_not_detected_message(self):
+        """When CMake is detected, must NOT say 'No dependency files detected.'"""
+        data = _render_cpp()
+        assert "No dependency files detected" not in data["Dependencies"]
+
+    def test_dependencies_only_cmake_build_system_still_not_empty(self):
+        """Even with no cmake deps list, CMake build system line must appear."""
+        result = _make_cpp_result(cmake_deps=None)
+        data = _render_cpp(result)
+        assert "CMake" in data["Dependencies"]
+        assert "No dependency files detected" not in data["Dependencies"]
+
+    # ── Make fallback ──────────────────────────────────────────────────────────
+
+    def test_make_setup_instructions(self):
+        """A Makefile-only project should get 'make' build instructions."""
+        result = AnalysisResult(
+            repo_url="https://github.com/owner/cproject",
+            repo_name="cproject",
+            owner="owner",
+            branch="main",
+            languages={"C": 3},
+            frameworks=[],
+            dependencies={"make_build_system": ["Make"]},
+            entry_points=["main.c"],
+            folder_structure={"src": {}},
+            api_routes=[],
+            readme_summary=None,
+        )
+        import json, report as report_module
+        original_key = report_module._OPENAI_API_KEY
+        report_module._OPENAI_API_KEY = None
+        try:
+            raw = ReportGenerator(result)._render_template()
+        finally:
+            report_module._OPENAI_API_KEY = original_key
+        data = json.loads(raw)
+        assert "make" in data["Setup Instructions"].lower()
+        assert "cmake" not in data["Setup Instructions"].lower()
+
+    def test_make_dependencies_mentions_make(self):
+        result = AnalysisResult(
+            repo_url="https://github.com/owner/cproject",
+            repo_name="cproject",
+            owner="owner",
+            branch="main",
+            languages={"C": 3},
+            frameworks=[],
+            dependencies={"make_build_system": ["Make"]},
+            entry_points=[],
+            folder_structure={},
+            api_routes=[],
+            readme_summary=None,
+        )
+        import json, report as report_module
+        original_key = report_module._OPENAI_API_KEY
+        report_module._OPENAI_API_KEY = None
+        try:
+            raw = ReportGenerator(result)._render_template()
+        finally:
+            report_module._OPENAI_API_KEY = original_key
+        data = json.loads(raw)
+        assert "Make" in data["Dependencies"]
+
+    # ── Non-regression: Python project unchanged ───────────────────────────────
+
+    def test_python_project_unaffected_by_cpp_changes(self):
+        """A regular Python/FastAPI result must still render the old-style setup."""
+        import json
+        data = json.loads(ReportGenerator(_make_result())._render_template())
+        assert "git clone" in data["Setup Instructions"]
+        assert ".env.example" in data["Setup Instructions"]
+        assert "cmake" not in data["Setup Instructions"].lower()
+
+    def test_python_deps_still_rendered_correctly(self):
+        import json
+        data = json.loads(ReportGenerator(_make_result())._render_template())
+        # Should use old "**python**: ..." format (not cmake format)
+        assert "fastapi>=0.111" in data["Dependencies"]
+        assert "No dependency files detected" not in data["Dependencies"]
+
+    # ── All 7 sections always present ─────────────────────────────────────────
+
+    def test_all_section_titles_present_for_cpp(self):
+        data = _render_cpp()
+        for title in SECTION_TITLES:
+            assert title in data, f"Missing section: {title}"
+
+    def test_recommended_tasks_mentions_ctest(self):
+        data = _render_cpp()
+        assert "ctest" in data["Recommended First Tasks"]
