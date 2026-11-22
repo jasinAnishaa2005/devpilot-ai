@@ -6,16 +6,7 @@
 [![FastAPI](https://img.shields.io/badge/Backend-FastAPI-c9a27e?style=for-the-badge&logo=fastapi&logoColor=2d211b)](https://fastapi.tiangolo.com/)
 [![AI](https://img.shields.io/badge/AI-Repository%20Onboarding-795548?style=for-the-badge)](#)
 
-</div>
-
-
-<div align="center">
-
-<img src="docs/project-preview.svg" alt="DevPilot AI animated project preview" width="100%" />
-
-</div>
-
-# DevPilot AI
+</div>\n\n# DevPilot AI
 
 **AI Developer Assistant for GitHub Repositories**
 
