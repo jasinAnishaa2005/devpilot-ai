@@ -1,3 +1,13 @@
+<div align="center">
+
+<img src="docs/readme-banner.svg" alt="DevPilot AI — AI developer onboarding assistant" width="100%" />
+
+[![Next.js](https://img.shields.io/badge/Frontend-Next.js-5b3828?style=for-the-badge&logo=nextdotjs&logoColor=white)](https://nextjs.org/)
+[![FastAPI](https://img.shields.io/badge/Backend-FastAPI-c9a27e?style=for-the-badge&logo=fastapi&logoColor=2d211b)](https://fastapi.tiangolo.com/)
+[![AI](https://img.shields.io/badge/AI-Repository%20Onboarding-795548?style=for-the-badge)](#)
+
+</div>
+
 # DevPilot AI
 
 **AI Developer Assistant for GitHub Repositories**
