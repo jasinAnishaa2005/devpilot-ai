@@ -8,6 +8,13 @@
 
 </div>
 
+
+<div align="center">
+
+<img src="docs/project-preview.svg" alt="DevPilot AI animated project preview" width="100%" />
+
+</div>
+
 # DevPilot AI
 
 **AI Developer Assistant for GitHub Repositories**
