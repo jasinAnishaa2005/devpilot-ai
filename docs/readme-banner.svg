@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="300" viewBox="0 0 1200 300">
+<defs><linearGradient id="g" x2="1" y2="1"><stop stop-color="#fffaf2"/><stop offset="1" stop-color="#e7d1bc"/></linearGradient><pattern id="p" width="28" height="28" patternUnits="userSpaceOnUse"><path d="M0 0h14v14H0zM14 14h14v14H14z" fill="#9a6b50" opacity=".18"/></pattern></defs>
+<rect width="1200" height="300" rx="24" fill="url(#g)"/><path d="M0 0h130v300H0zM1070 0h130v300h-130z" fill="url(#p)"/>
+<g fill="none" stroke="#70452f" stroke-width="5"><rect x="90" y="70" width="130" height="110" rx="15"/><path d="M125 105l-20 20 20 20M180 105l20 20-20 20M155 150l20-50"/></g>
+<g fill="#4b3023" font-family="Georgia,serif"><text x="280" y="130" font-size="68" font-weight="bold">DEVPILOT AI</text><text x="285" y="188" font-size="28" font-family="Arial,sans-serif">Understand a codebase. Find your way around.</text><text x="285" y="238" font-size="20" font-family="Arial,sans-serif" letter-spacing="4">REPOSITORY · ANALYSIS · ONBOARDING</text></g>
+</svg>
